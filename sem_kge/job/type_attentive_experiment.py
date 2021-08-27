@@ -1,21 +1,14 @@
-import torch
-import torch.nn.functional as F
-
-from torch.nn.functional import cosine_similarity as cos_sim
-
-from torch.distributions.categorical import Categorical
-
-from kge.job import EvaluationJob, Job
-from kge.config import Configurable
-
-from sem_kge.model import TypeAttentiveEmbedder
-
-import pandas as pd
-import seaborn as sns
-import numpy as np
-
 import math
 
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import torch
+from torch.distributions.categorical import Categorical
+from torch.nn.functional import cosine_similarity as cos_sim
+
+from kge.job import EvaluationJob
+from sem_kge.model import TypeAttentiveEmbedder
 
 SLOTS = [0, 1, 2]
 S, P, O = SLOTS
@@ -46,7 +39,6 @@ class TypeAttentiveExperimentJob(EvaluationJob):
         config_key = "type_attentive_experiment"
         self.trace_entity_level = self.config.get(config_key + ".trace_entity_level")
         self.chunk_size = self.config.get("type_attentive_experiment.chunk_size")
-        
 
     def _perform_chunked(self, operation):
         """ Performs `operation` on entities in chunks. """
@@ -160,7 +152,6 @@ class TypeAttentiveExperimentJob(EvaluationJob):
         self._add_average(calc_results, results_dict)
         self._generate_plot(calc_results, "attn_distribution")
         
-
     def _calc_embed_analysis(self, embedder, results_dict):
 
         def _perform_calculation(indexes, nr_of_chunks, chunk_start):
@@ -220,7 +211,6 @@ class TypeAttentiveExperimentJob(EvaluationJob):
 
         self._add_average(calc_results, results_dict)
         self._generate_plot(calc_results, "embedding_analysis")
-
 
     def _evaluate(self):
 

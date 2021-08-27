@@ -1,19 +1,14 @@
+import random
+
+import mdmm
 import torch
-import torch.nn.functional as F
 
-from torch.nn import MultiheadAttention
-
-from kge.model import KgeEmbedder
 from kge.job.train import TrainingJob
-
+from kge.model import KgeEmbedder
 from sem_kge import TypedDataset
 from sem_kge import misc
 from sem_kge.model import LoggingMixin
 
-from functools import partial
-import random
-
-import mdmm
 
 class TypePriorEmbedder(KgeEmbedder, LoggingMixin):
     """ 

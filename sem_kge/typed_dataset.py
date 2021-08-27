@@ -1,11 +1,10 @@
 
+from typing import List, Optional, Union
+
+import numpy as np
 from torch import Tensor
 
 from kge import Dataset
-
-from typing import Any, Dict, List, Optional, Union, Tuple
-
-import numpy as np
 
 
 class TypedDataset(Dataset):
@@ -35,14 +34,12 @@ class TypedDataset(Dataset):
         self.index_functions["relation_type_freqs"] = index_relation_types
         self.index_functions["type_jaccards"] = index_jaccard_types
 
-
     def num_types(self) -> int:
         "Return the number of entity types in this dataset."
         if not self._num_types:
             #self._num_types = 
             raise NotImplementedError()
         return self._num_types
-
 
     def entity_types(
         self, indexes: Optional[Union[int, Tensor]] = None

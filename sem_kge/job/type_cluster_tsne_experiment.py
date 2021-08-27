@@ -1,22 +1,17 @@
-import torch
-import torch.nn.functional as F
-
-from kge.job import EvaluationJob, Job
-
 import math
-import random
 
-import numpy as np
-import seaborn as sns
 import pandas as pd
-
+import seaborn as sns
+import torch
 from sklearn import manifold
 
+from kge.job import EvaluationJob
 from sem_kge import TypedDataset
 
 SLOTS = [0, 1, 2]
 S, P, O = SLOTS
 SLOT_STR = ["s", "p", "o"]
+
 
 class TypeClusterTSNEExperimentJob(EvaluationJob):
     """

@@ -82,7 +82,7 @@ class DiscreteStochasticEmbedder(KgeEmbedder):
             e = e[idx].view(e.shape[0],-1).unsqueeze(2)
             w = torch.ones((w.shape[0],1), device=self.device)
             
-        return e,w
+        return e, w
 
     def embed(self, indexes):
         e = self._embed(self.base_embedder.embed(indexes))

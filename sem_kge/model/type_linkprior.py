@@ -1,15 +1,12 @@
-
 import torch
-import torch.nn.functional as F
 from torch import Tensor
 from torch.nn.parameter import Parameter
 
-from sem_kge.model.embedder import DiscreteStochasticEmbedder, TransTEmbedder
-from sem_kge import TypedDataset
-
 from kge import Config, Dataset
-from kge.model.kge_model import RelationalScorer, KgeModel
-from kge.model.transe import TransEScorer
+from kge.model.kge_model import KgeModel
+from sem_kge import TypedDataset
+from sem_kge.model.embedder import TransTEmbedder
+
 
 class TypeLinkPrior(KgeModel):
     """ """
@@ -17,11 +14,11 @@ class TypeLinkPrior(KgeModel):
     PRIOR_ONLY_VALUE = "prior-only"
 
     def __init__(
-        self, 
-        config: Config,
-        dataset: Dataset,
-        configuration_key=None,
-        init_for_load_only=False,
+            self,
+            config: Config,
+            dataset: Dataset,
+            configuration_key=None,
+            init_for_load_only=False,
     ):
         self._init_configuration(config, configuration_key)
         configuration_key = self.configuration_key
@@ -50,25 +47,25 @@ class TypeLinkPrior(KgeModel):
 
         if self.has_base:
             self._base_model = base_model
-            
+
             self._entity_embedder = self._base_model.get_s_embedder()
             self._relation_embedder = self._base_model.get_p_embedder()
-    
+
         # convert dataset
         dataset = TypedDataset.create(dataset)
 
         device = self.config.get("job.device")
         self.device = device
 
-        relation_type_freqs = dataset.index("relation_type_freqs").to(device)
-        RHO = self.get_option("rho")
-        self.rel_common_head = relation_type_freqs[0] > RHO
-        self.rel_common_tail = relation_type_freqs[1] > RHO
+        relation_type_freqs: torch.FloatTensor = dataset.index("relation_type_freqs").to(device)
+        RHO: float = self.get_option("rho")
+        self.rel_common_head: torch.BoolTensor = relation_type_freqs[0] > RHO
+        self.rel_common_tail: torch.BoolTensor = relation_type_freqs[1] > RHO
 
         self.types_tensor = dataset.index("entity_type_set").to(device)
 
         def logit(lmbda):
-            return torch.log(lmbda / (1-lmbda))
+            return torch.log(lmbda / (1 - lmbda))
 
         lambda_head = self.get_option("lambda_head")
         lambda_relation = self.get_option("lambda_relation")
@@ -85,7 +82,7 @@ class TypeLinkPrior(KgeModel):
         lambda_tail = torch.full((1,), lambda_tail, device=device)
 
         learn_lambda = self.get_option("learn_lambda")
-        if learn_lambda:        
+        if learn_lambda:
             def pos_grad(name, var):
                 if var == 0 or var == 1:
                     var += (-1 if var == 1 else 1) * torch.finfo().eps
@@ -101,7 +98,7 @@ class TypeLinkPrior(KgeModel):
 
         if self.has_base:
             # The rest of the initialization is only relevant when there's a base model.
-            
+
             if not self.get_s_embedder() is self.get_o_embedder():
                 raise NotImplementedError("TransT currently does not support \
                     the use of different embedders for subjects and objects.")
@@ -116,7 +113,7 @@ class TypeLinkPrior(KgeModel):
     def prepare_job(self, job, **kwargs):
         if self.has_base:
             self._base_model.prepare_job(job, **kwargs)
-        
+
         if self.get_option("learn_lambda"):
             # trace the lambda parameters
             def trace_lambda(trace_job):
@@ -127,7 +124,7 @@ class TypeLinkPrior(KgeModel):
             from kge.job import TrainingOrEvaluationJob
             if isinstance(job, TrainingOrEvaluationJob):
                 job.pre_batch_hooks.append(trace_lambda)
-        
+
         # If we are not learning anything.
         if not self.has_base and not self.get_option("learn_lambda"):
             from kge.job import TrainingJob
@@ -135,7 +132,7 @@ class TypeLinkPrior(KgeModel):
                 # Manually validate.
                 trace_entry = job.valid_job.run()
                 job.valid_trace.append(trace_entry)
-                
+
                 # Make sure to run post_valid_hooks in case of search.
                 for f in job.post_valid_hooks:
                     f(job)
@@ -151,10 +148,10 @@ class TypeLinkPrior(KgeModel):
     def _s(self, T_1, T_2):
         intersection_size = (T_1 & T_2).sum(dim=1).float()
         other_size = T_1.sum(dim=1).float()
-        
+
         result = intersection_size / other_size
-        result += 1e-2 # prevent log(0)
-       
+        result += 1e-2  # prevent log(0)
+
         # If |T_1| = 0, than the numerator and denominator are both 0
         #   therefore the outcome should be 0.5?
         result[other_size.expand_as(result) == 0] = 0.5
@@ -165,14 +162,18 @@ class TypeLinkPrior(KgeModel):
         lambda_relation = self._loglambda_relation.sigmoid()
         lambda_tail = self._loglambda_tail.sigmoid()
 
-        lambda_head = 1 if lambda_head.isinf() else lambda_head 
-        lambda_relation = 1 if lambda_relation.isinf() else lambda_relation 
-        lambda_tail = 1 if lambda_tail.isinf() else lambda_tail 
+        lambda_head = 1 if lambda_head.isinf() else lambda_head
+        lambda_relation = 1 if lambda_relation.isinf() else lambda_relation
+        lambda_tail = 1 if lambda_tail.isinf() else lambda_tail
 
         def default_tensor(T_1, T_2, ignores=frozenset((1,))):
-            shape = tuple( max(T_1.shape[i], T_2.shape[i]) for i in range(len(T_1.shape)) if i not in ignores )
+            shape = tuple(
+                max(T_1.shape[i], T_2.shape[i])
+                for i in range(len(T_1.shape))
+                if i not in ignores
+            )
             return torch.zeros(tuple(1 for _ in shape), device=self.device).expand(shape)
-        
+
         if corrupted == "s":
             if lambda_head > 0:
                 result1 = lambda_head * self._s(T_r_head, T_h).log()
@@ -203,22 +204,24 @@ class TypeLinkPrior(KgeModel):
         return result1 + result2
 
     def _batch_log_prior(self, s_typ, p_typ, o_typ, corrupted: str, combine: str):
-        BS = 16 #TODO: make this configurable
+        BS = 16  # TODO: make this configurable
         p_typ_h, p_typ_t = p_typ
         if combine == "sp_":
             s_typ, p_typ_h, p_typ_t = s_typ.unsqueeze(2), p_typ_h.unsqueeze(2), p_typ_t.unsqueeze(2)
-            logprior = [];  N = o_typ.shape[0]
+            logprior = [];
+            N = o_typ.shape[0]
             for i in range(0, N, BS):
                 j = min(i + BS, N)
-                temp = o_typ[i:j,:].T.unsqueeze(0)
+                temp = o_typ[i:j, :].T.unsqueeze(0)
                 logprior.append(self._log_prior(s_typ, p_typ_h, p_typ_t, temp, corrupted))
             logprior = torch.cat(logprior, dim=1)
         elif combine == "_po":
             p_typ_h, p_typ_t, o_typ = p_typ_h.unsqueeze(2), p_typ_t.unsqueeze(2), o_typ.unsqueeze(2)
-            logprior = [];  N = s_typ.shape[0]
+            logprior = [];
+            N = s_typ.shape[0]
             for i in range(0, N, BS):
                 j = min(i + BS, N)
-                temp = s_typ[i:j,:].T.unsqueeze(0)
+                temp = s_typ[i:j, :].T.unsqueeze(0)
                 logprior.append(self._log_prior(temp, p_typ_h, p_typ_t, o_typ, corrupted))
             logprior = torch.cat(logprior, dim=1)
         elif combine == "s_o":
@@ -240,19 +243,19 @@ class TypeLinkPrior(KgeModel):
         loglikelihood = 0
         if self.has_base:
             loglikelihood = self._base_model.score_spo(s, p, o, direction=direction)
-        
+
         if hasattr(self, '_entity_embedder') and \
-           isinstance(self._entity_embedder, TransTEmbedder):
+                isinstance(self._entity_embedder, TransTEmbedder):
             p_emb = self.get_p_embedder().embed(p)
             self._entity_embedder.update(
-                (s,p,o),p_emb,(s_t,r_t,o_t),
+                (s, p, o), p_emb, (s_t, r_t, o_t),
                 loglikelihood, self._s)
 
         logposterior = loglikelihood + logprior
         return logposterior.view(-1)
 
     def score_sp(self, s: Tensor, p: Tensor, o: Tensor = None) -> Tensor:
-        raise NotImplementedError() 
+        raise NotImplementedError()
 
     def score_po(self, p: Tensor, o: Tensor, s: Tensor = None) -> Tensor:
         raise NotImplementedError()
@@ -261,7 +264,7 @@ class TypeLinkPrior(KgeModel):
         raise NotImplementedError()
 
     def score_sp_po(
-        self, s: Tensor, p: Tensor, o: Tensor, entity_subset: Tensor = None
+            self, s: Tensor, p: Tensor, o: Tensor, entity_subset: Tensor = None
     ) -> Tensor:
         s, p, o = s.long(), p.long(), o.long()
 
@@ -275,17 +278,16 @@ class TypeLinkPrior(KgeModel):
             all_entity_types = self.types_tensor[entity_subset_]
         else:
             all_entity_types = self.types_tensor
-    
+
         sp_logprior = self._batch_log_prior(
-                s_t, p_t, all_entity_types, "o", "sp_")
+            s_t, p_t, all_entity_types, "o", "sp_")
         po_logprior = self._batch_log_prior(
-                all_entity_types, p_t, o_t, "s", "_po")
-       
+            all_entity_types, p_t, o_t, "s", "_po")
+
         logprior = torch.cat((sp_logprior, po_logprior), dim=1)
         loglikelihood = 0
         if self.has_base:
             loglikelihood = self._base_model.score_sp_po(s, p, o, entity_subset)
 
         logposterior = logprior + loglikelihood
-        return logposterior 
-
+        return logposterior

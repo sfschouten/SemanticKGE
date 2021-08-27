@@ -1,8 +1,8 @@
 import torch
 import torch.nn.functional as F
 
-from kge.model import KgeEmbedder
 from sem_kge.model.embedder import DiscreteStochasticEmbedder
+
 
 class TransTEmbedder(DiscreteStochasticEmbedder):
     """ Embedder that associates each entity with multiple embeddings, and allows
@@ -12,17 +12,17 @@ class TransTEmbedder(DiscreteStochasticEmbedder):
     Ma et al.   """
 
     def __init__(
-        self, config, dataset, configuration_key, 
+        self, config, dataset, configuration_key,
         vocab_size, init_for_load_only=False
     ):
         self.vocab_size = vocab_size
         self.device = config.get("job.device")
-        
+
         E = self.vocab_size
         self.nr_semantics = torch.ones((E), device=self.device).long()
 
         super().__init__(
-            config, dataset, configuration_key, vocab_size, 
+            config, dataset, configuration_key, vocab_size,
             init_for_load_only=init_for_load_only
         )
 
@@ -31,17 +31,17 @@ class TransTEmbedder(DiscreteStochasticEmbedder):
 
     def get_nr_embeddings(self):
         """ returns a tensor with the number of embeddings for each object in vocabulary """
-        return self.nr_semantics 
+        return self.nr_semantics
 
     def initialize_semantics(self, types_tensor):
         E, S = types_tensor.shape
         M = self.max_nr_semantics
 
-        self.semantics = torch.zeros((E,S,M), device=self.device).bool() 
+        self.semantics = torch.zeros((E,S,M), device=self.device).bool()
 
         # The semantics of the first vector of each entity is simply its own type set.
         self.semantics[:,:,0] = types_tensor
-    
+
     def _softmax_weights(self, weights, indexes=None):
         # set inactive embedding weights to -inf before softmax
         nr_semantics = self.nr_semantics[indexes] if indexes != None else self.nr_semantics
@@ -56,8 +56,7 @@ class TransTEmbedder(DiscreteStochasticEmbedder):
         h_idx, r_idx, t_idx = idxs
         h_typ, r_typ, t_typ = types
         r_typ_h, r_typ_t = r_typ
-        
-        
+
         # The following probability represents the first term in formula 9 in the TransT paper.
         # Because the probability is a product, we can sample from the two terms separately.
         prob_new_component = self.crp_beta * torch.exp(-r_emb.abs().sum(dim=1))
@@ -72,7 +71,7 @@ class TransTEmbedder(DiscreteStochasticEmbedder):
             candidates = dist.sample().bool() & ~full
             candidate_idx = candidates * e_idx
             candidate_idx = candidate_idx[candidates]                   # C
-            
+
             if len(candidate_idx) is 0:
                 # There are no candidates so we move on.
                 continue
@@ -81,7 +80,7 @@ class TransTEmbedder(DiscreteStochasticEmbedder):
             candidate_semantics = self.semantics[candidate_idx,:,:]     # C x S x M
 
             # The following code calculates the right side of formula 9 in the TransT paper.
-            
+
             # Note that we also calculate similarity with the 'empty' semantics-vectors, 
             # because otherwise we could no longer have batched operations 
             # (different entities have different number of semantics)
@@ -101,9 +100,9 @@ class TransTEmbedder(DiscreteStochasticEmbedder):
 
             # The semantics of the newly added vector is the set of common types
             #   of the relation in the triple.
-            self.semantics[                                     \
-                    to_be_extended_idx, :,                      \
-                    self.nr_semantics[to_be_extended_idx],      \
-                ] = r_typ_[candidates][to_be_extended]
-            self.nr_semantics[to_be_extended_idx] += 1
+            self.semantics[
+                to_be_extended_idx, :,
+                self.nr_semantics[to_be_extended_idx],
+            ] = r_typ_[candidates][to_be_extended]
 
+            self.nr_semantics[to_be_extended_idx] += 1

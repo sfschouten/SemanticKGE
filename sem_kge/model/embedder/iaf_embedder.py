@@ -1,19 +1,13 @@
-import torch
-import torch.nn.functional as F
-from torch import Tensor
-from torch.distributions.kl import kl_divergence
-
-from pyro.nn import ConditionalAutoRegressiveNN
-from pyro.distributions.transforms.affine_autoregressive import ConditionalAffineAutoregressive
-
 from functools import partial
 
-from kge.model import KgeEmbedder
-from kge.job.train import TrainingJob
-
-from sem_kge import misc
-
 import mdmm
+import torch
+from pyro.distributions.transforms.affine_autoregressive import ConditionalAffineAutoregressive
+from pyro.nn import ConditionalAutoRegressiveNN
+
+from kge.job.train import TrainingJob
+from kge.model import KgeEmbedder
+from sem_kge import misc
 
 
 class IAFEmbedder(KgeEmbedder):
@@ -64,7 +58,6 @@ class IAFEmbedder(KgeEmbedder):
         
         self.last_ldjs = []
         
-   
     def prepare_job(self, job: "Job", **kwargs):
         super().prepare_job(job, **kwargs)
         self.base_embedder.prepare_job(job, **kwargs)
@@ -100,7 +93,7 @@ class IAFEmbedder(KgeEmbedder):
         transform = self.transform
         if self.direction != direction:
             transform = self.transform.inv
-            #TODO warning about performance/memory
+            # TODO warning about performance/memory
             
         transform = transform.condition(cntx)
         transformed = transform(points)

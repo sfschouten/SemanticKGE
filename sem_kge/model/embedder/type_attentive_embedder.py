@@ -1,14 +1,11 @@
+import mdmm
 import torch
+from torch.nn import MultiheadAttention
 
-from torch.nn import Linear, MultiheadAttention
-
-from kge.model import KgeEmbedder
 from kge.job.train import TrainingJob
-
+from kge.model import KgeEmbedder
 from sem_kge import TypedDataset
 from sem_kge import misc
-
-import mdmm
 
 
 class TypeAttentiveEmbedder(KgeEmbedder):

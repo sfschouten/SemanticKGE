@@ -1,26 +1,16 @@
-import torch
-import torch.nn.functional as F
-
-from torch.nn.functional import cosine_similarity as cos_sim
-from torch.distributions.kl import kl_divergence
-
-from kge.job import EvaluationJob, Job
-from kge.config import Configurable
-
-from sem_kge import TypedDataset
-from sem_kge.model import TypePriorEmbedder
+import math
 
 import pandas as pd
 import seaborn as sns
-import numpy as np
+import torch
 
-import math
-
+from kge.job import EvaluationJob
+from sem_kge import TypedDataset
+from sem_kge.model import TypePriorEmbedder
 
 SLOTS = [0, 1, 2]
 S, P, O = SLOTS
 SLOT_STR = ["s", "p", "o"]
-
 
 HUMAN_READABLE = {
     "prior_lpdf_diff" : "Log PDF Pos - Neg",
@@ -28,6 +18,7 @@ HUMAN_READABLE = {
     "prior_lpdf_neg" : "Log PDF Neg",
     "nr_outcomes" : "Nr. Outcomes",
 }
+
 
 class TypePriorExperimentJob(EvaluationJob):
     """
@@ -71,7 +62,6 @@ class TypePriorExperimentJob(EvaluationJob):
         elif mode == "types":
             num_elements = self.dataset.mum_types()
             
-        
         # calculate scores in chunks to not have the complete score matrix in memory
         # a chunk here represents a range of entity_values to score against
         chunk_size = self.chunk_size if self.chunk_size > -1 else num_elements
@@ -119,8 +109,6 @@ class TypePriorExperimentJob(EvaluationJob):
             fig = g.get_figure()
             fig.savefig(f"{name}_{key}.png")
             fig.clf()
-
-    
 
     def _calc_embed_analysis(self, embedder, results_dict):
 
@@ -298,7 +286,6 @@ class TypePriorExperimentJob(EvaluationJob):
         fig = g
         fig.savefig(f"{dataset_name}_scatter_typepair_jaccard_vs_bhattacharyya.png", bbox_inches="tight", dpi=1000)
 
-
     def _evaluate(self):
 
         with torch.no_grad():
@@ -339,5 +326,3 @@ class TypePriorExperimentJob(EvaluationJob):
             self.current_trace["epoch"].update({
                 "type_embedder" : embedder_results
             })
-
-

@@ -1,20 +1,10 @@
-from typing import Optional, Tuple
 import random
 
 import torch
-import torch.nn.functional as F
-
-from torch.nn.parameter import Parameter
-from torch.nn import Linear, MultiheadAttention
 
 from kge.model import KgeEmbedder
-from kge.job.train import TrainingJob
-
 from sem_kge import TypedDataset
-from sem_kge import misc
 from sem_kge.model import LoggingMixin
-
-import mdmm
 
 
 class TypeMeanEmbedder(KgeEmbedder, LoggingMixin):
@@ -83,14 +73,13 @@ class TypeMeanEmbedder(KgeEmbedder, LoggingMixin):
             config, dataset, self.configuration_key + ".type_embedder", T + 1 # +1 for pad embed
         )
         
-
     def _embed(self, type_embeds, type_padding_mask, entity_embeds):
         nr_types = (~type_padding_mask).sum(dim=1)
         type_embeds[type_padding_mask.T] = 0.
         embeds = type_embeds.sum(dim=0) / nr_types.unsqueeze(-1)
         embeds[nr_types==0] = 0.
         
-        if entity_embeds != None:
+        if entity_embeds is not None:
             embeds += entity_embeds
           
         return embeds
@@ -102,7 +91,7 @@ class TypeMeanEmbedder(KgeEmbedder, LoggingMixin):
         type_paddin = self.type_padding[indexes]
         
         entity_embeds = None
-        if self.use_entity_embedder and (not self.training or random.uniform(0,1) > 0.5):
+        if self.use_entity_embedder and (not self.training or random.uniform(0, 1) > 0.5):
             entity_embeds = self.entity_embedder.embed(indexes)
 
         return self._embed(type_embeds, type_paddin, entity_embeds)
@@ -111,14 +100,21 @@ class TypeMeanEmbedder(KgeEmbedder, LoggingMixin):
         type_embeds = self.type_embedder.embed(self.entity_types.T)
         
         entity_embeds = None
-        if self.use_entity_embedder and (not self.training or random.uniform(0,1) > 0.5):
+        if self.use_entity_embedder and (not self.training or random.uniform(0, 1) > 0.5):
             entity_embeds = self.entity_embedder.embed_all()
         
         return self._embed(type_embeds, self.type_padding, entity_embeds)
         
     def penalty(self, **kwargs):
         terms = super().penalty(**kwargs)
-        terms += self.type_embedder.penalty(**kwargs)
+
+        type_indexes = self.entity_types[kwargs['indexes'].view(-1)]
+        type_indexes = type_indexes[type_indexes != self.PADDING_IDX]
+        type_kwargs = dict(**kwargs)
+        type_kwargs['indexes'] = type_indexes
+        terms += self.type_embedder.penalty(**type_kwargs)
+
         if self.use_entity_embedder:
             terms += self.entity_embedder.penalty(**kwargs)
+
         return terms

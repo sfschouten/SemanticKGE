@@ -1,9 +1,10 @@
 import torch
-from kge import Config, Dataset
-from kge.model.kge_model import RelationalScorer, KgeModel
 from torch.nn import functional as F
 
-from sem_kge.model import DiscreteStochasticEmbedder, TransTEmbedder
+from kge import Config, Dataset
+from kge.model.kge_model import RelationalScorer, KgeModel
+from sem_kge.model import DiscreteStochasticEmbedder
+
 
 class TransTScorer(RelationalScorer):
     r"""Implementation of the TransE KGE scorer."""
@@ -75,6 +76,7 @@ class TransTScorer(RelationalScorer):
                       + weighted_exp.sum(dim=1).sum(dim=1).log()
         loglikelihood = loglikelihood.squeeze()
         return loglikelihood
+
 
 class TransT(KgeModel):
     r"""Implementation of the TransT KGE model."""
