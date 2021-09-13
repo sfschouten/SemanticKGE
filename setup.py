@@ -13,7 +13,7 @@ setup(
         "torch>=1.3.1",
         "libkge>=0.1",
         "mdmm==0.1.3",
-        "pyro-ppl>=1.7.0",
+        "pyro-ppl>=1.5.2",
     ],
     python_requires='>=3.7',  
 )
