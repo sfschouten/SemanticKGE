@@ -28,7 +28,7 @@ class TypeAttentiveEmbedder(KgeEmbedder):
         config.set(self.configuration_key + ".base_embedder.dim", dim)
         config.set(self.configuration_key + ".type_embedder.dim", dim)
 
-        self.entropy_mode = self.get_option('entropy_mode')
+        self.entropy_mode = self.check_option('entropy_mode', ["disable", "min", "max"])
         self.entropy_threshold = self.get_option('entropy_threshold')
         self.entropy = torch.tensor(0)
         
@@ -86,7 +86,7 @@ class TypeAttentiveEmbedder(KgeEmbedder):
         self.add_entity_to_keyvalue = self.get_option("add_entity_to_keyvalue")
         
     def init_mdmm_module(self):
-        if self.entropy_mode != "off":
+        if self.entropy_mode != "disable":
             cls = mdmm.MinConstraint if self.entropy_mode == "min" else mdmm.MaxConstraint
             
             self.mdmm_module = mdmm.MDMM([ cls(
@@ -101,7 +101,7 @@ class TypeAttentiveEmbedder(KgeEmbedder):
         self.base_embedder.prepare_job(job, **kwargs)
         self.type_embedder.prepare_job(job, **kwargs)
         
-        if self.entropy_mode != 'off' and isinstance(job, TrainingJob):
+        if self.entropy_mode != 'disable' and isinstance(job, TrainingJob):
             self.init_mdmm_module()
             misc.add_constraints_to_job(job, self.mdmm_module)
 
@@ -109,7 +109,7 @@ class TypeAttentiveEmbedder(KgeEmbedder):
         def trace_loss(job):
             key = f"{self.configuration_key}.entropy"
             job.current_trace["batch"][key] = self.entropy.item()
-            if self.entropy_mode != 'off' and isinstance(job, TrainingJob):
+            if self.entropy_mode != 'disable' and isinstance(job, TrainingJob):
                 job.current_trace["batch"][f"{key}_lambda"] = self.mdmm_module[0].lmbda.item()
 
         from kge.job import TrainingOrEvaluationJob
@@ -188,7 +188,7 @@ class TypeAttentiveEmbedder(KgeEmbedder):
         type_kwargs['indexes'] = type_indexes
         terms += self.type_embedder.penalty(**type_kwargs)
 
-        if self.entropy_mode != 'off':
+        if self.entropy_mode != 'disable':
             self.calc_entropy(indexes)
             terms += [(
                 f"{self.configuration_key}.entropy", 
