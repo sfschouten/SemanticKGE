@@ -1,0 +1,10 @@
+import: [transe]
+
+composed2_model:
+  class_name: Composed2Model
+  base_model1:
+    type: transe
+    +++: +++
+  base_model2:
+    type: transe
+    +++: +++
