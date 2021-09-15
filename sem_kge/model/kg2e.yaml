@@ -1,0 +1,11 @@
+import: [gaussian_embedder]
+
+kg2e:
+  class_name: KG2E
+  entity_embedder:
+    type: gaussian_embedder
+    +++: +++
+  relation_embedder:
+    type: gaussian_embedder
+    +++: +++
+  distance-metric: kl-divergence    # kl-divergence, expected-likelihood

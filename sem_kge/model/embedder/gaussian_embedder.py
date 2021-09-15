@@ -13,7 +13,6 @@ from sem_kge.model import LoggingMixin
 
 
 class GaussianEmbedder(KgeEmbedder, LoggingMixin):
-    DIST = torch.distributions.normal.Normal
 
     def __init__(
             self, config, dataset, configuration_key,
@@ -27,6 +26,9 @@ class GaussianEmbedder(KgeEmbedder, LoggingMixin):
         self.device = self.config.get("job.device")
         self.vocab_size = vocab_size
         self.kl_loss = self.get_option_and_log("kl_loss")
+        self.embed_as_dist = False
+
+        self.dist_cls = torch.distributions.normal.Normal
 
         # initialize loc_embedder
         config.set(self.configuration_key + ".loc_embedder.dim", base_dim)
@@ -50,7 +52,7 @@ class GaussianEmbedder(KgeEmbedder, LoggingMixin):
             config, dataset, self.configuration_key + ".scale_embedder", vocab_size
         )
 
-        self.prior = self.DIST(
+        self.prior = self.dist_cls(
             torch.tensor([0.0], device=self.device, requires_grad=False).expand(base_dim).unsqueeze(0),
             torch.tensor([1.0], device=self.device, requires_grad=False).expand(base_dim).unsqueeze(0)
         )
@@ -90,7 +92,7 @@ class GaussianEmbedder(KgeEmbedder, LoggingMixin):
 
     def dist(self, indexes=None, use_cache=False, cache_action='push'):
         """
-        Instantiates `self.DIST` using the parameters obtained 
+        Instantiates `self.dist_cls` using the parameters obtained
         from embedding `indexes` or all indexes if `indexes' is None.
         """
 
@@ -115,7 +117,7 @@ class GaussianEmbedder(KgeEmbedder, LoggingMixin):
             mu = self.loc_embedder.embed(indexes)
             sigma = F.softplus(self.scale_embedder.embed(indexes))
 
-        dist = self.DIST(mu, sigma)
+        dist = self.dist_cls(mu, sigma)
         dist.rsample = mod_rsample
         return dist
 
@@ -138,10 +140,16 @@ class GaussianEmbedder(KgeEmbedder, LoggingMixin):
         return sample
 
     def embed(self, indexes):
-        return self.sample(indexes).mean(dim=0)
+        if self.embed_as_dist:
+            return self.dist(indexes=indexes)
+        else:
+            return self.sample(indexes).mean(dim=0)
 
     def embed_all(self):
-        return self.sample().mean(dim=0)
+        if self.embed_as_dist:
+            return self.dist()
+        else:
+            return self.sample().mean(dim=0)
 
     def penalty(self, **kwargs):
         terms = super().penalty(**kwargs)

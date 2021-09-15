@@ -1,4 +1,3 @@
-
 import: [lookup_embedder]
 
 gaussian_embedder:
@@ -17,7 +16,7 @@ gaussian_embedder:
     +++: +++
   
   # kl-divergence
-  kl_loss: True
+  kl_loss: False
   kl_max_threshold: 0.5
   kl_max_scale: 1.
   kl_max_damping: 1.
