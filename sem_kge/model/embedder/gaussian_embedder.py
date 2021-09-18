@@ -1,15 +1,26 @@
 from functools import partial
+from types import MethodType
 
 import mdmm
+
 import torch
 import torch.nn.functional as F
 from torch.distributions.kl import kl_divergence
 from torch.distributions.utils import _standard_normal
+from torch.distributions.normal import Normal
+from torch.distributions.multivariate_normal import MultivariateNormal
 
 from kge.job.train import TrainingJob
 from kge.model import KgeEmbedder
 from sem_kge import misc
 from sem_kge.model import LoggingMixin
+
+
+def normal_(dist_cls, mu, sigma):
+    if dist_cls == Normal:
+        return Normal(mu, sigma)
+    else:  # dist_cls == MultivariateNormal
+        return MultivariateNormal(mu, scale_tril=sigma, validate_args=False)
 
 
 class GaussianEmbedder(KgeEmbedder, LoggingMixin):
@@ -28,7 +39,16 @@ class GaussianEmbedder(KgeEmbedder, LoggingMixin):
         self.kl_loss = self.get_option_and_log("kl_loss")
         self.embed_as_dist = False
 
-        self.dist_cls = torch.distributions.normal.Normal
+        self.mode = self.check_option("mode", ["univariate", "multivariate"])
+        if self.mode == "univariate":
+            self.dist_cls = torch.distributions.normal.Normal
+        elif self.mode == "multivariate":
+            self.dist_cls = torch.distributions.multivariate_normal.MultivariateNormal
+            # create masks
+            self.diag_mask = torch.diag(torch.ones(base_dim)).expand((1, base_dim, base_dim)).bool()
+            self.bottom_mask = torch.tril(torch.ones((1, base_dim, base_dim))).bool()
+        else:
+            raise ValueError("Invalid mode!")
 
         # initialize loc_embedder
         config.set(self.configuration_key + ".loc_embedder.dim", base_dim)
@@ -42,7 +62,11 @@ class GaussianEmbedder(KgeEmbedder, LoggingMixin):
         )
 
         # initialize scale_embedder
-        config.set(self.configuration_key + ".scale_embedder.dim", base_dim)
+        if self.mode == "univariate":
+            scale_dim = base_dim
+        else:  # self.mode == "multivariate":
+            scale_dim = int(base_dim * (base_dim+1) / 2)
+        config.set(self.configuration_key + ".scale_embedder.dim", scale_dim)
         if self.configuration_key + ".scale_embedder.type" not in config.options:
             config.set(
                 self.configuration_key + ".scale_embedder.type",
@@ -52,10 +76,12 @@ class GaussianEmbedder(KgeEmbedder, LoggingMixin):
             config, dataset, self.configuration_key + ".scale_embedder", vocab_size
         )
 
-        self.prior = self.dist_cls(
-            torch.tensor([0.0], device=self.device, requires_grad=False).expand(base_dim).unsqueeze(0),
-            torch.tensor([1.0], device=self.device, requires_grad=False).expand(base_dim).unsqueeze(0)
-        )
+        mu = torch.tensor([0.0], device=self.device, requires_grad=False).expand(base_dim).unsqueeze(0)
+        if self.mode == "univariate":
+            sigma = torch.tensor([1.0], device=self.device, requires_grad=False).expand(base_dim).unsqueeze(0)
+        else:
+            sigma = torch.eye(base_dim, device=self.device, requires_grad=False).unsqueeze(0)
+        self.prior = self.dist_cls(mu, sigma, validate_args=False)
 
         self.last_kl_divs = []
 
@@ -72,7 +98,7 @@ class GaussianEmbedder(KgeEmbedder, LoggingMixin):
                 scale=self.get_option_and_log("kl_max_scale"),
                 damping=self.get_option_and_log("kl_max_damping")
             )
-            dummy_val = torch.zeros((1), device=self.device)
+            dummy_val = torch.zeros(1, device=self.device)
             kl_max_module = mdmm.MDMM([max_kl_constraint])
             misc.add_constraints_to_job(job, kl_max_module)
             self.kl_max_module = partial(kl_max_module, dummy_val)
@@ -96,11 +122,11 @@ class GaussianEmbedder(KgeEmbedder, LoggingMixin):
         from embedding `indexes` or all indexes if `indexes' is None.
         """
 
-        def mod_rsample(dist, sample_shape=torch.Size()):
+        def mod_rsample(dist_, sample_shape=torch.Size()):
             """Modified rsample that saves samples so we can calculate penalty later."""
             if not use_cache or cache_action == 'push':
-                shape = dist._extended_shape(sample_shape)
-                eps = _standard_normal(shape, dtype=dist.loc.dtype, device=dist.loc.device)
+                shape = dist_._extended_shape(sample_shape)
+                eps = _standard_normal(shape, dtype=dist_.loc.dtype, device=dist_.loc.device)
 
                 if use_cache and cache_action == 'push':
                     self.sample_stack.append(eps.detach())
@@ -108,17 +134,30 @@ class GaussianEmbedder(KgeEmbedder, LoggingMixin):
             if use_cache and cache_action == 'pop':
                 eps = self.sample_stack.pop(0)
 
-            return dist.loc + eps * dist.scale
+            if self.mode == "univariate":
+                return dist_.loc + eps * dist_.scale
+            else:
+                return dist_.loc + torch.matmul(dist_.scale_tril, eps.unsqueeze(-1)).squeeze(-1)
 
-        if indexes == None:
+        if indexes is None:
             mu = self.loc_embedder.embed_all()
-            sigma = F.softplus(self.scale_embedder.embed_all())
+            sigma = self.scale_embedder.embed_all()
         else:
             mu = self.loc_embedder.embed(indexes)
-            sigma = F.softplus(self.scale_embedder.embed(indexes))
+            sigma = self.scale_embedder.embed(indexes)
 
-        dist = self.dist_cls(mu, sigma)
-        dist.rsample = mod_rsample
+        if self.mode == "multivariate":
+            B, D = mu.shape
+            sigma_ = torch.zeros((B, D, D), device=mu.device)
+            sigma_[self.bottom_mask.expand_as(sigma_)] = sigma.view(-1)
+            mask = self.diag_mask.expand_as(sigma_)
+            sigma_[mask] = F.softplus(sigma_[mask])
+            sigma = sigma_
+        else:
+            sigma = F.softplus(sigma)
+
+        dist = normal_(self.dist_cls, mu, sigma)
+        dist.rsample = MethodType(mod_rsample, dist)
         return dist
 
     def log_pdf(self, points, indexes):
