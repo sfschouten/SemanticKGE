@@ -64,7 +64,7 @@ class AsymmetricKG2EScorer(RelationalScorer):
             # TODO warning, not optimizing variance
             return super().score_emb(s_emb.loc, p_emb.loc, o_emb.loc, combine)
         if len(out.shape) > 1:
-            out.sum(-1)
+            out = out.sum(-1)
         return out.view(n, -1)
 
 
