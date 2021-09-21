@@ -1,10 +1,11 @@
-
 import: [lookup_embedder]
 
 gaussian_embedder:
   class_name: GaussianEmbedder
   dim: 100
-  
+
+  mode: univariate                  # univariate, multivariate (i.e. diagonal or full covariance matrix)
+
   loc_embedder:
     type: lookup_embedder
     +++: +++
@@ -16,8 +17,8 @@ gaussian_embedder:
       val: 0.1
     +++: +++
   
-  # kl-divergence
-  kl_loss: True
+  # kl-divergence (adds constraint on D_kl between a standard normal prior and learned Gaussians)
+  kl_loss: False
   kl_max_threshold: 0.5
   kl_max_scale: 1.
   kl_max_damping: 1.

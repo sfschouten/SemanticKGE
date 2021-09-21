@@ -10,3 +10,5 @@ data/*/
 *.egg-info/
 
 wandb/
+
+test_runs/

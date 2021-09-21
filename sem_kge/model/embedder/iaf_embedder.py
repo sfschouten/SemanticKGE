@@ -12,7 +12,6 @@ from sem_kge import misc
 
 class IAFEmbedder(KgeEmbedder):
     """ 
-    
     """
 
     def __init__(
