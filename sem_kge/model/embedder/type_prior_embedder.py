@@ -88,13 +88,13 @@ class TypePriorEmbedder(KgeEmbedder, LoggingMixin):
         
 
     def init_mdmm_module(self):
-        max_prior_nll_constraint = mdmm.MaxConstraint(
+        self.max_prior_nll_constraint = mdmm.MaxConstraint(
             lambda: self.nll_type_prior,
             self.nll_max_threshold,
             scale = self.get_option_and_log("nll_max_scale"),
             damping = self.get_option_and_log("nll_max_damping")
         )
-        self.mdmm_module = mdmm.MDMM([max_prior_nll_constraint])
+        self.mdmm_module = mdmm.MDMM([self.max_prior_nll_constraint])
         
     def prepare_job(self, job: "Job", **kwargs):
         super().prepare_job(job, **kwargs)
@@ -110,7 +110,7 @@ class TypePriorEmbedder(KgeEmbedder, LoggingMixin):
         def trace_regularization_loss(job):
             job.current_trace["batch"]["prior_nll"] = self.nll_type_prior.item()
             if isinstance(job, TrainingJob):
-                job.current_trace["batch"]["prior_nll_lambda"] = max_prior_nll_constraint.lmbda.item()
+                job.current_trace["batch"]["prior_nll_lambda"] = self.max_prior_nll_constraint.lmbda.item()
 
         from kge.job import TrainingOrEvaluationJob
         if isinstance(job, TrainingOrEvaluationJob):
