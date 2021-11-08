@@ -1,0 +1,10 @@
+import: [eulercomplex_embedder]
+
+prob_rotate:
+  class_name: ProbRotatE
+  entity_embedder:
+    type: eulercomplex_embedder
+    +++: +++
+  relation_embedder:
+    type: eulercomplex_embedder
+    +++: +++

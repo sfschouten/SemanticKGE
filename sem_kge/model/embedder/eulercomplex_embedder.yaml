@@ -1,0 +1,18 @@
+import:
+  - vonmises_embedder
+  - lognormal_embedder
+
+eulercomplex_embedder:
+  class_name: EulerComplexEmbedder
+  dim: 100
+
+  angle_embedder:
+    type: vonmises_embedder
+    +++: +++
+
+  magnitude_embedder:
+    type: lognormal_embedder
+    +++: +++
+
+  regularize_args:
+    weighted: False

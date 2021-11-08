@@ -1,0 +1,25 @@
+import: [lookup_embedder]
+
+lognormal_embedder:
+  class_name: LogNormalEmbedder
+  dim: 100
+
+  loc_embedder:
+    type: lookup_embedder
+    +++: +++
+
+  scale_embedder:
+    type: lookup_embedder
+    initialize: constant_
+    initialize_args:
+      val: 0.54
+    +++: +++
+
+  # kl-divergence (adds constraint on D_kl between a standard normal prior and learned Gaussians)
+  kl_loss: False
+  kl_max_threshold: 0.5
+  kl_max_scale: 1.
+  kl_max_damping: 1.
+
+  regularize_args:
+    weighted: False

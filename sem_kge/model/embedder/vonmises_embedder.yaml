@@ -1,0 +1,30 @@
+import: [lookup_embedder]
+
+vonmises_embedder:
+  class_name: VonMisesEmbedder
+  dim: 100
+
+  loc_embedder:
+    type: lookup_embedder
+    initialize: uniform_
+    initialize_args:
+      uniform_:
+        a: -3.14159265359
+        b: 3.14159265359
+    +++: +++
+
+  concentration_embedder:
+    type: lookup_embedder
+    initialize: constant_
+    initialize_args:
+      val: 15.0
+    +++: +++
+
+  # kl-divergence (adds constraint on D_kl between a standard normal prior and learned Gaussians)
+  kl_loss: False
+  kl_max_threshold: 0.5
+  kl_max_scale: 1.
+  kl_max_damping: 1.
+
+  regularize_args:
+    weighted: False
