@@ -104,7 +104,7 @@ class LogNormalEmbedder(KgeEmbedder, LoggingMixin):
             mu = self.loc_embedder.embed(indexes)
             sigma = self.scale_embedder.embed(indexes)
 
-        sigma = F.softplus(sigma)
+        sigma = F.softplus(sigma) + 1e-18  # Always greater than 0
 
         dist = self.dist_cls(mu, sigma)
         return dist
